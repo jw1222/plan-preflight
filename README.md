@@ -1,14 +1,13 @@
 # plan-preflight
 
-**English** | [한국어](README.ko.md)
+**한국어** | [English](README.en.md)
 
-**Preflight checks for your implementation plans.**
+**구현 계획서를 위한 이륙 전 점검(preflight check).**
 
-A [Claude Code](https://claude.com/claude-code) skill that drives a plan
-document to a binary **PASS / FAIL** verdict before you write a single line of
-code. Two AI reviewers examine the plan independently, contract-level defects
-get fixed automatically, and the loop re-reviews until the gate closes —
-typically in 1–3 rounds.
+코드를 한 줄 쓰기 전에 계획 문서를 **PASS / FAIL 이진 판정**으로 닫아주는
+[Claude Code](https://claude.com/claude-code) 스킬입니다. 두 AI 리뷰어가
+계획서를 독립적으로 검토하고, 계약 수준 결함은 자동으로 수정되며, 게이트가
+닫힐 때까지 재리뷰를 돕니다 — 보통 1~3라운드면 끝납니다.
 
 ```
 /plan-preflight docs/payment-refund-plan.md
@@ -19,156 +18,161 @@ typically in 1–3 rounds.
 [PROGRESS] R2: accepted 0 · rejected 1 · dup 2 · verdict PASS
 
 GATE PASS (2 rounds)
-  fixed   : refund idempotency contract added · rollback step ordering closed
-  rejected: 3 impl-micro (retry interval, endpoint path, error copy) · 1 policy proposal
+  fixed   : 환불 멱등성 계약 추가 · 롤백 단계 순서 확정
+  rejected: impl-micro 3건 (재시도 간격, endpoint 경로, 에러 문구) · 정책 변경 제안 1건
   restore : docs/payment-refund-plan.md.pre-gate-20260803T101500Z
 ```
 
-## Why
+## 왜 만들었나
 
-AI makes writing plans cheap. It did not make *trusting* them cheap. Teams
-generate a plan in minutes, then either ship on vibes or burn an afternoon in
-review threads. plan-preflight treats the plan like CI treats code: a gate with a
-binary verdict.
+AI 덕분에 계획서 작성은 싸졌습니다. 하지만 계획서를 *신뢰하는* 비용은 그대로입니다.
+몇 분 만에 계획을 뽑아놓고, 감으로 착수하거나 리뷰 스레드에서 반나절을 태웁니다.
+plan-preflight는 CI가 코드를 다루듯 계획서를 다룹니다: **이진 판정이 나오는 게이트**로.
 
-Building a reliable gate is harder than it looks. Two failure modes kill the
-naive "hey Claude, review my plan in a loop" approach — plan-preflight was built
-around both (each discovered the hard way, in production use):
+믿을 만한 게이트를 만드는 건 보기보다 어렵습니다. "Claude야, 내 계획서 루프
+돌려서 리뷰해줘" 식의 순진한 접근은 두 가지 함정에 반드시 빠지는데, plan-preflight는
+그 둘을 중심으로 설계됐습니다 (둘 다 실전 운영에서 몸으로 배운 것들입니다):
 
-**1. The bar slips.** Ask a strong reviewer to review a *plan* and by round
-three it demands poll intervals, HTTP status codes, and exact endpoint paths.
-A plan legitimately defers those — so PASS becomes unreachable, forever one
-"missing detail" away. plan-preflight pins the review altitude in every prompt:
-**contracts, decisions, and schemas are judged; implementation micro-detail
-is explicitly not a defect.**
+**1. 평가 기준이 미끄러집니다.** 유능한 리뷰어에게 *계획서*를 리뷰시키면
+3라운드쯤엔 poll 간격, HTTP 상태 코드, 정확한 endpoint 경로를 요구하기
+시작합니다. 계획서는 그런 것들을 정당하게 미뤄두는 문서인데도요 — 그래서
+PASS는 영원히 "빠진 디테일 하나" 앞에서 좌절됩니다. plan-preflight는 모든 프롬프트에
+평가 고도를 못 박습니다: **계약·결정·스키마의 완성도만 판정하고, 구현
+마이크로 디테일은 명시적으로 결함이 아닙니다.**
 
-**2. Reviewers hate reporting empty-handed.** A cold reviewer told to "find
-defects" will manufacture medium-severity findings rather than return nothing.
-Rounds balloon. plan-preflight tells reviewers that **zero findings is a normal
-outcome**, gates rounds on **critical/high severity only**, and attaches each
-round's disposition history so handled findings can't be re-reported.
+**2. 리뷰어는 빈손 보고를 싫어합니다.** "결함을 찾아라"라는 지시를 받은 콜드
+리뷰어는 아무것도 없다고 돌아오느니 medium급 발견을 만들어냅니다. 라운드가
+불어나죠. plan-preflight는 리뷰어에게 **발견 0건이 정상적인 결과**임을 명시하고,
+라운드 연장은 **critical/high 심각도에만** 걸며, 각 라운드의 처리 이력을
+첨부해 이미 처리된 발견의 재보고를 차단합니다.
 
-## What it does
+## 무엇을 하나
 
-| Element | Behavior |
+| 요소 | 동작 |
 |---|---|
-| Verdict target | "Is this plan ready to implement?" — nothing more |
-| Dual review | Claude + optional codex second voice (auto-degrades to single-reviewer) |
-| Policy invariants | Locked decisions are collected up front and never modified — change proposals are reported, not applied |
-| Auto-fix scope | Contract-level defects only: missing idempotency/rollback/state contracts, cross-document contradictions, citations that don't match the code, unmarked open questions |
-| Termination | PASS when a round yields zero critical/high findings (medium-only = immediate pass-with-notes) · FAIL after the round cap with the unresolved list |
+| 판정 대상 | "이 계획서로 구현에 들어가도 되는가" — 그 이상도 이하도 아님 |
+| 이중 검증 | Claude + 선택적 codex 2차 리뷰어 (없으면 자동으로 단독 리뷰) |
+| 정책 불변 | 확정된 결정은 시작 시 수집되고 절대 수정되지 않음 — 변경 제안은 보고만 |
+| 자동 수정 범위 | 계약 수준 결함만: 멱등성·롤백·상태전이 계약 누락, 문서 간 모순, 코드와 안 맞는 인용, 미표기 미해결 항목 |
+| 종료 조건 | 한 라운드에 critical/high 0건이면 PASS (medium만 있으면 즉시 pass-with-notes) · 라운드 상한 초과 시 미해결 목록과 함께 FAIL |
 
-## What it never does
+## 절대 하지 않는 것
 
-- Change a locked decision, even if a reviewer argues for it
-- Edit any file other than the plan itself
-- Commit, push, or deploy
-- Edit without leaving a restore point (`<file>.pre-gate-<timestamp>`)
+- 확정된 결정 변경 — 리뷰어가 아무리 주장해도
+- 계획서 이외 파일 수정
+- 커밋, 푸시, 배포
+- 복원점(`<file>.pre-gate-<timestamp>`) 없이 수정
 
-## Install
+## 설치
 
 ```bash
 git clone https://github.com/jw1222/plan-preflight
 cp -r plan-preflight/skills/plan-preflight ~/.claude/skills/
 ```
 
-That's the whole install. One markdown file, no dependencies, no build step.
+설치는 이게 전부입니다. 마크다운 파일 하나, 의존성 없음, 빌드 없음.
 
-**Optional second reviewer:** dual-voice mode activates only when all three
-are true:
+**선택적 2차 리뷰어:** 듀얼 보이스 모드는 다음 세 가지가 모두 충족될 때만
+활성화됩니다:
 
-1. the **openai-codex Claude Code plugin** is installed (it provides the
-   `codex:codex-rescue` agent),
-2. the **OpenAI Codex CLI** is installed, and
-3. you are **logged in** to it (`codex login`, or an `OPENAI_API_KEY` in the
-   environment).
+1. **openai-codex Claude Code 플러그인** 설치 (`codex:codex-rescue` 에이전트 제공)
+2. **OpenAI Codex CLI** 설치
+3. **로그인** 상태 (`codex login` 또는 환경변수 `OPENAI_API_KEY`)
 
-If any of these is missing — including "plugin installed but not logged in" —
-the agent call fails and plan-preflight continues single-voice (`[primary-only]`
-from the start, or `[codex-degraded]` for the affected round). Nothing breaks.
+하나라도 빠지면 — "플러그인은 깔았는데 로그인 안 함" 포함 — 에이전트 호출이
+실패하고 plan-preflight는 단독 리뷰로 계속합니다 (처음부터면 `[primary-only]`,
+해당 라운드만이면 `[codex-degraded]`). 아무것도 깨지지 않습니다.
 
-## Usage
+## 사용법
 
 ```bash
-# Basic — gate one plan
+# 기본 — 계획서 하나를 게이트에
 /plan-preflight docs/checkout-refactor-plan.md
 
-# Companion documents (cross-document consistency is checked too)
+# 짝 문서 (문서 간 정합성도 함께 검사)
 /plan-preflight plans/migration-v2.md,plans/migration-brief.md
 
-# High-risk plan: adversarial second voice
+# 고위험 계획: 적대적 2차 리뷰
 /plan-preflight docs/billing-plan.md --codex-mode adversarial
 
-# Explicit invariants file, extended rounds
+# 불변 정책 파일 명시, 라운드 확장
 /plan-preflight plan.md --invariants decisions.md --base 3 --max 5
 ```
 
-| Option | Default | Meaning |
+| 옵션 | 기본값 | 의미 |
 |---|---|---|
-| `--invariants <file>` | auto-collected | Source of locked policy |
-| `--codex on\|off\|auto` | `auto` | Second reviewer toggle |
-| `--codex-mode rescue\|adversarial` | `rescue` | Second-voice depth |
-| `--base N` / `--max M` | 3 / 5 | Round budget / extended cap |
-| `--log <file>` | `<plan>.review.md` | Round history location |
+| `--invariants <file>` | 자동 수집 | 확정 정책의 출처 |
+| `--codex on\|off\|auto` | `auto` | 2차 리뷰어 사용 여부 |
+| `--codex-mode rescue\|adversarial` | `rescue` | 2차 리뷰 강도 |
+| `--base N` / `--max M` | 3 / 5 | 기본 라운드 수 / 확장 상한 |
+| `--log <file>` | `<plan>.review.md` | 라운드 이력 위치 |
 
-Works on `.md`, `.html`, `.txt` — any plan the reviewers can read.
+`.md`, `.html`, `.txt` — 리뷰어가 읽을 수 있는 계획서라면 무엇이든 동작합니다.
 
-## How it works
+**출력 언어:** 기본은 영어입니다. 보고서와 로그를 한글로(또는 다른 언어로)
+받고 싶다면, 호출할 때 그렇게 요청하면 됩니다:
 
 ```
-Step 0  Lock target · collect invariants · extract code citations
-        · derive plan-specific focus · assemble both prompts (once)
-Step 1  Resolve second reviewer (agent present? dual : single)
-Step 2  ROUND LOOP (sequential rounds, parallel voices within a round)
-          dispatch both reviewers → classify findings
-          → reject policy/impl-micro → auto-fix contract defects
-          → severity gate: no crit/high? PASS : next round
-Step 3  Report PASS/FAIL · applied fixes · rejected list · restore points
+/plan-preflight docs/plan.md — 답변은 한글로 해줘
 ```
 
-Full mechanics are in [`skills/plan-preflight/SKILL.md`](skills/plan-preflight/SKILL.md)
-— it is the skill, and it is the documentation.
+내부 이중 리뷰어 프롬프트는 (의도적으로) 영어로 고정돼 있습니다 — 사용자에게
+보여주는 보고서와 `--log` 파일만 요청한 언어를 따릅니다.
 
-## See a real run (no tokens required)
+## 동작 방식
 
-The `examples/` directory contains a complete gate run you can read instead
-of executing:
+```
+Step 0  대상 확정 · 불변 정책 수집 · 코드 인용 추출
+        · 계획서별 리뷰 포커스 도출 · 프롬프트 2종 조립 (1회)
+Step 1  2차 리뷰어 확인 (에이전트 있으면 듀얼 : 없으면 단독)
+Step 2  라운드 루프 (라운드는 순차, 라운드 안의 두 목소리는 병렬)
+          두 리뷰어 발사 → 발견 분류
+          → 정책/impl-micro 거부 → 계약 결함 자동 수정
+          → severity gate: crit/high 없으면 PASS : 다음 라운드
+Step 3  PASS/FAIL 보고 · 적용한 수정 · 거부 목록 · 복원점 안내
+```
 
-| File | What it is |
+전체 메커니즘은 [`skills/plan-preflight/SKILL.md`](skills/plan-preflight/SKILL.md)에
+있습니다 — 그 파일이 스킬이자 곧 문서입니다.
+
+## 실제 실행 결과 보기 (토큰 소모 없음)
+
+`examples/` 디렉터리에 실제 게이트 실행 한 세트가 통째로 들어 있어, 직접
+돌려보지 않고도 읽을 수 있습니다:
+
+| 파일 | 내용 |
 |---|---|
-| [`sample-plan.md`](examples/sample-plan.md) | A refund-feature plan with deliberate contract gaps (annotated answer key at the bottom) |
-| [`sample-plan.gated.md`](examples/sample-plan.gated.md) | The same plan **after** a real 3-round dual-voice run — every addition is an auto-applied contract fix |
-| [`sample-plan.review.md`](examples/sample-plan.review.md) | The round-by-round log: findings, severities, the orchestrator's severity override, and the final `GATE PASS [pass-with-notes]` |
+| [`sample-plan.md`](examples/sample-plan.md) | 계약 결함을 일부러 심어둔 환불 기능 계획서 (하단에 채점표 주석) |
+| [`sample-plan.gated.md`](examples/sample-plan.gated.md) | 실제 3라운드 듀얼 보이스 실행 **이후**의 같은 계획서 — 추가된 내용 전부가 자동 적용된 계약 수정 |
+| [`sample-plan.review.md`](examples/sample-plan.review.md) | 라운드별 로그: 발견·심각도·오케스트레이터의 심각도 재판정·최종 `GATE PASS [pass-with-notes]` |
 
-Highlights from that run: all 3 planted defects caught in round 1 by both
-voices, 4 additional genuine defects found beyond the answer key, zero
-locked-policy modifications, zero impl-micro drilling — and in round 3 the
-severity gate cut off a reviewer that kept escalating new findings each
-round, which is exactly the failure mode it exists for.
+이 실행의 하이라이트: 심은 결함 3종을 1라운드에 두 리뷰어 모두 검출, 채점표에
+없던 진짜 결함 4건 추가 발견, 잠긴 정책 수정 0건, impl-micro 드릴 0건 — 그리고
+3라운드에서 매 라운드 새 결함을 파내려가던 리뷰어를 severity gate가 정확히
+끊어냈습니다. 이 스킬이 존재하는 이유인 바로 그 실패 모드입니다.
 
 ## FAQ
 
-**Do I need codex?** No. Single-voice mode runs the identical loop. The
-second voice raises confidence; its absence is tagged in the report. If you
-*expected* dual-voice but the report says `[primary-only]` or
-`[codex-degraded]`, the usual cause is the Codex CLI not being logged in —
-run `codex login` and try again.
+**codex가 꼭 필요한가요?** 아니요. 단독 리뷰 모드가 동일한 루프를 돌립니다.
+2차 리뷰어는 신뢰도를 높여줄 뿐이고, 없으면 보고서에 태그로 표시됩니다.
+듀얼을 기대했는데 `[primary-only]`나 `[codex-degraded]`가 찍혀 있다면 대개
+Codex CLI 미로그인이 원인입니다 — `codex login` 후 다시 시도하세요.
 
-**Will it "improve" my architecture?** Deliberately not. Decisions you've
-locked are out of scope by design. The gate closes *your* plan — it doesn't
-substitute its taste for yours.
+**아키텍처를 "개선"해주나요?** 의도적으로 하지 않습니다. 확정한 결정은
+설계상 범위 밖입니다. 게이트는 *당신의* 계획을 닫아주는 것이지, 자기 취향으로
+바꿔치기하지 않습니다.
 
-**Why does it refuse to check poll intervals / endpoint paths?** Because a
-plan that specified those wouldn't be a plan — it would be the implementation.
-That altitude discipline is the reason PASS is reachable at all.
+**왜 poll 간격이나 endpoint 경로는 검사를 거부하나요?** 그것까지 명시한
+문서는 계획서가 아니라 구현 그 자체이기 때문입니다. 이 고도 규율이 PASS가
+도달 가능한 이유입니다.
 
-**Can it review code / PRs?** No, and it will say so. Pre-implementation
-plan and design documents only. Use a code review tool after you build.
+**코드나 PR도 리뷰할 수 있나요?** 아니요, 그리고 스스로 거절합니다. 구현
+이전의 계획·설계 문서만 대상입니다. 구현 후에는 코드 리뷰 도구를 쓰세요.
 
-**Invoke by name or trust auto-triggering?** Explicit invocation
-(`/plan-preflight <file>`) is the reliable path and the recommended habit.
-Model-initiated triggering works but varies by context.
+**이름으로 호출해야 하나요, 자동 발동을 믿어도 되나요?** 명시 호출
+(`/plan-preflight <파일>`)이 확실한 경로이고 권장 습관입니다. 모델의 자동 발동도
+동작하지만 상황에 따라 편차가 있습니다.
 
-## License
+## 라이선스
 
-MIT — see [LICENSE](LICENSE).
+MIT — [LICENSE](LICENSE) 참고.

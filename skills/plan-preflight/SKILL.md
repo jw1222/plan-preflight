@@ -88,6 +88,13 @@ their absence never blocks the gate.
   cap when critical/high defects persist.
 - `--log <file>` — round log location. Default: `<plan>.review.md`.
 
+**Report language.** The Step 3 report to the user, and the `--log` file, are
+written in whatever language the user's invocation was in (or explicitly
+requested) — default English if no signal. The Step 0 reviewer prompt
+templates stay fixed English regardless of report language; they were tuned
+in English and translating them is not part of this option. Only the
+orchestrator's user-facing report and log adapt.
+
 ## Core principles
 
 Injected into every reviewer prompt, every round:
