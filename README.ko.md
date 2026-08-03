@@ -125,6 +125,22 @@ Step 3  PASS/FAIL 보고 · 적용한 수정 · 거부 목록 · 복원점 안�
 전체 메커니즘은 [`skills/plan-preflight/SKILL.md`](skills/plan-preflight/SKILL.md)에
 있습니다 — 그 파일이 스킬이자 곧 문서입니다.
 
+## 실제 실행 결과 보기 (토큰 소모 없음)
+
+`examples/` 디렉터리에 실제 게이트 실행 한 세트가 통째로 들어 있어, 직접
+돌려보지 않고도 읽을 수 있습니다:
+
+| 파일 | 내용 |
+|---|---|
+| [`sample-plan.md`](examples/sample-plan.md) | 계약 결함을 일부러 심어둔 환불 기능 계획서 (하단에 채점표 주석) |
+| [`sample-plan.gated.md`](examples/sample-plan.gated.md) | 실제 3라운드 듀얼 보이스 실행 **이후**의 같은 계획서 — 추가된 내용 전부가 자동 적용된 계약 수정 |
+| [`sample-plan.review.md`](examples/sample-plan.review.md) | 라운드별 로그: 발견·심각도·오케스트레이터의 심각도 재판정·최종 `GATE PASS [pass-with-notes]` |
+
+이 실행의 하이라이트: 심은 결함 3종을 1라운드에 두 리뷰어 모두 검출, 채점표에
+없던 진짜 결함 4건 추가 발견, 잠긴 정책 수정 0건, impl-micro 드릴 0건 — 그리고
+3라운드에서 매 라운드 새 결함을 파내려가던 리뷰어를 severity gate가 정확히
+끊어냈습니다. 이 스킬이 존재하는 이유인 바로 그 실패 모드입니다.
+
 ## FAQ
 
 **codex가 꼭 필요한가요?** 아니요. 단독 리뷰 모드가 동일한 루프를 돌립니다.

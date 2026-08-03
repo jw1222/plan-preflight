@@ -129,6 +129,23 @@ Step 3  Report PASS/FAIL · applied fixes · rejected list · restore points
 Full mechanics are in [`skills/plan-preflight/SKILL.md`](skills/plan-preflight/SKILL.md)
 — it is the skill, and it is the documentation.
 
+## See a real run (no tokens required)
+
+The `examples/` directory contains a complete gate run you can read instead
+of executing:
+
+| File | What it is |
+|---|---|
+| [`sample-plan.md`](examples/sample-plan.md) | A refund-feature plan with deliberate contract gaps (annotated answer key at the bottom) |
+| [`sample-plan.gated.md`](examples/sample-plan.gated.md) | The same plan **after** a real 3-round dual-voice run — every addition is an auto-applied contract fix |
+| [`sample-plan.review.md`](examples/sample-plan.review.md) | The round-by-round log: findings, severities, the orchestrator's severity override, and the final `GATE PASS [pass-with-notes]` |
+
+Highlights from that run: all 3 planted defects caught in round 1 by both
+voices, 4 additional genuine defects found beyond the answer key, zero
+locked-policy modifications, zero impl-micro drilling — and in round 3 the
+severity gate cut off a reviewer that kept escalating new findings each
+round, which is exactly the failure mode it exists for.
+
 ## FAQ
 
 **Do I need codex?** No. Single-voice mode runs the identical loop. The
