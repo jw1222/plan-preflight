@@ -53,7 +53,7 @@ round's disposition history so handled findings can't be re-reported.
 | Element | Behavior |
 |---|---|
 | Verdict target | "Is this plan ready to implement?" — nothing more |
-| Dual review | Claude + optional codex second voice (auto-degrades to single-reviewer) |
+| Dual review | Claude + a second voice: codex when available, otherwise an adversarially framed second Claude subagent (single-voice only with `--fallback none`) |
 | Policy invariants | Locked decisions are collected up front and never modified — change proposals are reported, not applied |
 | Auto-fix scope | Critical/high contract-level defects only: missing idempotency/rollback/state contracts, cross-document contradictions, citations that don't match the code, unmarked open questions. Medium findings are noted, never edited |
 | Termination | PASS when a round yields zero critical/high findings (medium-only = immediate pass-with-notes, no edits) · FAIL after the round cap with the unresolved list. Every edit the gate applies is re-reviewed by the next round |
@@ -74,8 +74,7 @@ cp -r plan-preflight/skills/plan-preflight ~/.claude/skills/
 
 That's the whole install. One markdown file, no dependencies, no build step.
 
-**Optional second reviewer:** dual-voice mode activates only when all three
-are true:
+**Second reviewer:** the codex voice activates only when all three are true:
 
 1. the **openai-codex Claude Code plugin** is installed (it provides the
    `codex:codex-rescue` agent),
@@ -84,8 +83,10 @@ are true:
    environment).
 
 If any of these is missing — including "plugin installed but not logged in" —
-the agent call fails and plan-preflight continues single-voice (`[primary-only]`
-from the start, or `[codex-degraded]` for the affected round). Nothing breaks.
+the agent call fails and the second seat goes to an adversarially framed
+second Claude subagent instead (`[dual-claude]`, plus `[codex-degraded]` when
+the failure happened mid-run). Dual-voice is kept; nothing breaks. Pass
+`--fallback none` if you want single-voice (`[primary-only]`).
 
 ## Usage
 
@@ -107,7 +108,8 @@ from the start, or `[codex-degraded]` for the affected round). Nothing breaks.
 |---|---|---|
 | `--invariants <file>` | auto-collected | Source of locked policy |
 | `--codex on\|off\|auto` | `auto` | Second reviewer toggle |
-| `--codex-mode rescue\|adversarial` | `rescue` | Second-voice depth |
+| `--codex-mode rescue\|adversarial` | `rescue` | Codex voice depth |
+| `--fallback claude\|none` | `claude` | Second voice when codex is unavailable: adversarial Claude subagent / single-voice |
 | `--base N` / `--max M` | 3 / 5 | Round budget / extended cap |
 | `--log <file>` | `<plan>.review.md` | Round history location |
 
@@ -132,8 +134,8 @@ prompts → Japanese chain-of-thought). Only the report shown to you and the
 
 ```
 Step 0  Lock target · collect invariants · extract code citations
-        · derive plan-specific focus · assemble both prompts (once)
-Step 1  Resolve second reviewer (agent present? dual : single)
+        · derive plan-specific focus · assemble the three prompts (once)
+Step 1  Resolve second reviewer (codex available? codex : adversarial Claude subagent)
 Step 2  ROUND LOOP (sequential rounds, parallel voices within a round)
           dispatch both reviewers → classify findings
           → reject policy/impl-micro → auto-fix contract defects
@@ -163,11 +165,12 @@ round, which is exactly the failure mode it exists for.
 
 ## FAQ
 
-**Do I need codex?** No. Single-voice mode runs the identical loop. The
-second voice raises confidence; its absence is tagged in the report. If you
-*expected* dual-voice but the report says `[primary-only]` or
-`[codex-degraded]`, the usual cause is the Codex CLI not being logged in —
-run `codex login` and try again.
+**Do I need codex?** No. Without it, an adversarially framed second Claude
+subagent takes the second seat, so the gate stays dual-voice
+(`[dual-claude]`). Codex is simply the preferred option: a different model
+family gives a more independent second sample. If you *expected* codex but
+the report says `[dual-claude]` or `[codex-degraded]`, the usual cause is the
+Codex CLI not being logged in — run `codex login` and try again.
 
 **Will it "improve" my architecture?** Deliberately not. Decisions you've
 locked are out of scope by design. The gate closes *your* plan — it doesn't

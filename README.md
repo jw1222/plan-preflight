@@ -52,7 +52,7 @@ PASS는 영원히 "빠진 디테일 하나" 앞에서 좌절됩니다. plan-pref
 | 요소 | 동작 |
 |---|---|
 | 판정 대상 | "이 계획서로 구현에 들어가도 되는가" — 그 이상도 이하도 아님 |
-| 이중 검증 | Claude + 선택적 codex 2차 리뷰어 (없으면 자동으로 단독 리뷰) |
+| 이중 검증 | Claude + 2차 리뷰어: codex가 있으면 codex, 없으면 적대 프레이밍의 두 번째 Claude 서브에이전트 (단독 리뷰는 `--fallback none`일 때만) |
 | 정책 불변 | 확정된 결정은 시작 시 수집되고 절대 수정되지 않음 — 변경 제안은 보고만 |
 | 자동 수정 범위 | critical/high 계약 수준 결함만: 멱등성·롤백·상태전이 계약 누락, 문서 간 모순, 코드와 안 맞는 인용, 미표기 미해결 항목. medium은 편집하지 않고 노트로만 남김 |
 | 종료 조건 | 한 라운드에 critical/high 0건이면 PASS (medium만 있으면 편집 없이 즉시 pass-with-notes) · 라운드 상한 초과 시 미해결 목록과 함께 FAIL. 게이트가 적용한 수정은 항상 다음 라운드가 재검토함 |
@@ -73,16 +73,17 @@ cp -r plan-preflight/skills/plan-preflight ~/.claude/skills/
 
 설치는 이게 전부입니다. 마크다운 파일 하나, 의존성 없음, 빌드 없음.
 
-**선택적 2차 리뷰어:** 듀얼 보이스 모드는 다음 세 가지가 모두 충족될 때만
-활성화됩니다:
+**2차 리뷰어:** codex 목소리는 다음 세 가지가 모두 충족될 때만 활성화됩니다:
 
 1. **openai-codex Claude Code 플러그인** 설치 (`codex:codex-rescue` 에이전트 제공)
 2. **OpenAI Codex CLI** 설치
 3. **로그인** 상태 (`codex login` 또는 환경변수 `OPENAI_API_KEY`)
 
 하나라도 빠지면 — "플러그인은 깔았는데 로그인 안 함" 포함 — 에이전트 호출이
-실패하고 plan-preflight는 단독 리뷰로 계속합니다 (처음부터면 `[primary-only]`,
-해당 라운드만이면 `[codex-degraded]`). 아무것도 깨지지 않습니다.
+실패하고, 2차 리뷰어 자리는 적대 프레이밍을 붙인 두 번째 Claude 서브에이전트가
+대신 맡습니다 (`[dual-claude]`, 호출 도중 실패면 `[codex-degraded]`도 함께).
+듀얼 보이스는 유지되고 아무것도 깨지지 않습니다. 단독 리뷰를 원하면
+`--fallback none`을 붙이십시오 (`[primary-only]`).
 
 ## 사용법
 
@@ -104,7 +105,8 @@ cp -r plan-preflight/skills/plan-preflight ~/.claude/skills/
 |---|---|---|
 | `--invariants <file>` | 자동 수집 | 확정 정책의 출처 |
 | `--codex on\|off\|auto` | `auto` | 2차 리뷰어 사용 여부 |
-| `--codex-mode rescue\|adversarial` | `rescue` | 2차 리뷰 강도 |
+| `--codex-mode rescue\|adversarial` | `rescue` | codex 리뷰 강도 |
+| `--fallback claude\|none` | `claude` | codex를 못 쓸 때의 2차 리뷰어: 적대 프레이밍 Claude 서브에이전트 / 단독 리뷰 |
 | `--base N` / `--max M` | 3 / 5 | 기본 라운드 수 / 확장 상한 |
 | `--log <file>` | `<plan>.review.md` | 라운드 이력 위치 |
 
@@ -127,8 +129,8 @@ cp -r plan-preflight/skills/plan-preflight ~/.claude/skills/
 
 ```
 Step 0  대상 확정 · 불변 정책 수집 · 코드 인용 추출
-        · 계획서별 리뷰 포커스 도출 · 프롬프트 2종 조립 (1회)
-Step 1  2차 리뷰어 확인 (에이전트 있으면 듀얼 : 없으면 단독)
+        · 계획서별 리뷰 포커스 도출 · 프롬프트 3종 조립 (1회)
+Step 1  2차 리뷰어 확인 (codex 있으면 codex : 없으면 적대 Claude 서브에이전트)
 Step 2  라운드 루프 (라운드는 순차, 라운드 안의 두 목소리는 병렬)
           두 리뷰어 발사 → 발견 분류
           → 정책/impl-micro 거부 → 계약 결함 자동 수정
@@ -158,10 +160,12 @@ Step 3  PASS/FAIL 보고 · 적용한 수정 · 거부 목록 · 복원점 안�
 
 ## FAQ
 
-**codex가 꼭 필요한가요?** 아니요. 단독 리뷰 모드가 동일한 루프를 돌립니다.
-2차 리뷰어는 신뢰도를 높여줄 뿐이고, 없으면 보고서에 태그로 표시됩니다.
-듀얼을 기대했는데 `[primary-only]`나 `[codex-degraded]`가 찍혀 있다면 대개
-Codex CLI 미로그인이 원인입니다 — `codex login` 후 다시 시도하세요.
+**codex가 꼭 필요한가요?** 아니요. 없으면 적대 프레이밍을 붙인 두 번째
+Claude 서브에이전트가 2차 리뷰어를 맡아 듀얼 보이스가 유지됩니다
+(`[dual-claude]`). codex는 모델 계열이 달라 더 독립적인 두 번째 표본을 주는
+선호 옵션일 뿐입니다. codex를 기대했는데 `[dual-claude]`나 `[codex-degraded]`가
+찍혀 있다면 대개 Codex CLI 미로그인이 원인입니다 — `codex login` 후 다시
+시도하세요.
 
 **아키텍처를 "개선"해주나요?** 의도적으로 하지 않습니다. 확정한 결정은
 설계상 범위 밖입니다. 게이트는 *당신의* 계획을 닫아주는 것이지, 자기 취향으로

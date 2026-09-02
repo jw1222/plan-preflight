@@ -2,8 +2,8 @@
 name: plan-preflight
 description: >
   Close the question "is this plan ready to implement?" with a binary PASS/FAIL
-  verdict. Two reviewers — Claude plus an optional codex second voice (degrades
-  to single-reviewer automatically) — examine a plan document independently,
+  verdict. Two reviewers — Claude plus a second voice: codex when available,
+  otherwise an adversarial Claude subagent — examine a plan document independently,
   auto-fix contract-level defects only, and re-review until the gate closes.
   Locked policy decisions are never changed. Target file (.md/.html/.txt)
   must be specified. Use when the user points at a plan, design document, or
@@ -85,8 +85,12 @@ their absence never blocks the gate.
   auto-collected in Step 0.
 - `--codex on|off|auto` (default `auto`) — second reviewer. `auto` = dual-voice
   when the `codex:codex-rescue` agent is available, single-voice otherwise.
-- `--codex-mode rescue|adversarial` (default `rescue`) — depth of the second
+- `--codex-mode rescue|adversarial` (default `rescue`) — depth of the codex
   voice. `adversarial` adds contract-breaking framing for high-risk plans.
+- `--fallback claude|none` (default `claude`) — second voice when codex is not
+  used (`--codex off`, agent absent, or a failed call). `claude` = a second,
+  adversarially framed Claude subagent (`[dual-claude]`); `none` =
+  single-voice (`[primary-only]`).
 - `--base N` (default 3) / `--max M` (default 5) — base round count / extended
   cap when critical/high defects persist.
 - `--log <file>` — round log location. Default: `<plan>.review.md`.
@@ -158,11 +162,13 @@ Injected into every reviewer prompt, every round:
      plan gets transactions/duplicate-charge focus; a migration plan gets
      rollback/data-loss; a UI plan gets state/rendering — **it differs per
      plan, every time.**
-5. **Assemble the two prompts.** Fill the placeholders of the reviewer prompt
-   templates below with the Step 0.4 output, producing `REVIEW_PROMPT_PRIMARY`
-   and `REVIEW_PROMPT_CODEX` (same body; the codex variant adds one
-   filesystem-boundary line, plus one adversarial line when
-   `--codex-mode adversarial`). Assemble **once and reuse across all rounds** —
+5. **Assemble the reviewer prompts.** Fill the placeholders of the reviewer
+   prompt templates below with the Step 0.4 output, producing
+   `REVIEW_PROMPT_PRIMARY`, `REVIEW_PROMPT_CODEX` (same body; the codex
+   variant adds one filesystem-boundary line, plus one adversarial line when
+   `--codex-mode adversarial`), and `REVIEW_PROMPT_FALLBACK` (the primary body
+   with the adversarial line always on — see the fallback template).
+   Assemble **once and reuse across all rounds** —
    invariants, focus, and citations are properties of the plan, not the round;
    only the document body reviewers read changes between rounds. Announce a
    one-line summary (`Focus: …`) and enter the loop.
@@ -174,15 +180,23 @@ Injected into every reviewer prompt, every round:
 
 ### Step 1 — Resolve the second reviewer
 
-The second voice is **only** the `codex:codex-rescue` agent (from the
-openai-codex plugin), invoked via the Agent tool. (`--codex off` skips it.)
+The preferred second voice is the `codex:codex-rescue` agent (from the
+openai-codex plugin), invoked via the Agent tool — a different model family
+gives the most independent second sample. When codex is not used, the second
+voice is a **second Claude subagent with adversarial framing** (`--fallback
+claude`, the default). Single-voice only when the user asks for it
+(`--fallback none`).
 
-1. If the agent type is available in this environment → dual-voice.
-2. Otherwise → single-voice (`[primary-only]`), one-line notice. **Do not fall
-   back to a raw `codex` CLI** — `codex exec` hangs often enough to stall the
-   gate; the omission is deliberate.
-3. If an agent call fails or times out mid-run, finish that round single-voice
-   and tag `[codex-degraded]`.
+1. `--codex auto|on` and the agent type is available → codex second voice,
+   tag `[dual]`.
+2. `--codex off`, or the agent type absent → the Claude fallback, tag
+   `[dual-claude]` (single-voice `[primary-only]` only under `--fallback
+   none`), with a one-line notice. **Do not fall back to a raw `codex` CLI** —
+   `codex exec` hangs often enough to stall the gate; the omission is
+   deliberate.
+3. If a codex call fails or times out mid-run, run that round's second voice
+   as the Claude fallback instead and keep the fallback for the remaining
+   rounds — do not retry codex. Tag `[codex-degraded]` plus `[dual-claude]`.
 4. **An empty reply is a failure, not a vote.** The rescue agent returns
    nothing when the Codex call cannot be made. Treat an empty reply, or any
    reply without a `VERDICT:` line, as `[codex-degraded]` — never as "zero
@@ -196,6 +210,12 @@ openai-codex plugin), invoked via the Agent tool. (`--codex off` skips it.)
    session — the forwarder strips them from the task text), and (b) state
    plainly that it is a read-only review with no file edits, so the run stays
    in the read-only sandbox.
+6. **The fallback is a reviewer, not a spare.** Dispatch it exactly like the
+   primary — `subagent_type: "general-purpose"`, never `fork`, launched in
+   the same message as the primary, with no access to the primary's findings.
+   Prefer a different model than the primary when the Agent tool offers one;
+   on the same model the adversarial framing still yields an independent
+   sample.
 
 > Agent presence does not guarantee a working call: the underlying Codex CLI
 > must be installed **and authenticated** (`codex login` or `OPENAI_API_KEY`).
@@ -213,8 +233,9 @@ openai-codex plugin), invoked via the Agent tool. (`--codex off` skips it.)
    "general-purpose"` — never `fork`, which inherits this conversation's
    context; cold and independent; `REVIEW_PROMPT_PRIMARY`). Second =
    `codex:codex-rescue` (`REVIEW_PROMPT_CODEX`, prefixed with `--wait --fresh`
-   per Step 1.5). Both see the **same current document**, and neither edits
-   anything — the orchestrator alone applies fixes in step 3.
+   per Step 1.5) or, per Step 1, the Claude fallback (`REVIEW_PROMPT_FALLBACK`,
+   also `general-purpose`). Both see the **same current document**, and
+   neither edits anything — the orchestrator alone applies fixes in step 3.
 2. **Collect and classify** each finding:
    `{title, file, severity, isContractLevel, isPolicyChange, isImplMicro,
    rationale}`. `isPolicyChange` or `isImplMicro` → **reject** (log "out of
@@ -264,7 +285,8 @@ openai-codex plugin), invoked via the Agent tool. (`--codex off` skips it.)
   policy/impl-micro list (transparency), and unresolved items on FAIL.
 - Append per-round history to the `--log` location: date · target · findings /
   accepted / rejected / dup / verdict per round · final result · tags
-  (`[primary-only]` / `[dual]` / `[pass-with-notes]`).
+  (`[dual]` / `[dual-claude]` / `[primary-only]` / `[codex-degraded]` /
+  `[pass-with-notes]`).
 - If a pre-validation script exists (Step 0.2), optionally re-run it after the
   gate to confirm auto-fixes didn't break formatting rules.
 - **Final approval is the user's.** Auto-fixes were applied, so remind them:
@@ -348,6 +370,20 @@ foreground in a fresh session, so the reply is the findings, not a job id.
 > real critical/high contract defects; medium-only lists still verdict PASS.
 > If prior-round history is attached, do not re-report matches.
 
+## Reviewer prompt template — fallback (second Claude subagent, adversarial)
+
+Used whenever codex is not the second voice (Step 1). `REVIEW_PROMPT_FALLBACK`
+is `REVIEW_PROMPT_PRIMARY` with two lines prepended:
+
+> Attack this plan's contracts: under which assumptions, orderings,
+> concurrency, or failure paths does it break? No goodwill, no summaries.
+> You are the second, independent reviewer: you have not seen and must not
+> guess at any other reviewer's findings — judge the document on its own.
+
+Everything else — altitude, scope-out, read-only, output schema, the
+zero-findings rule — is identical to the primary template, so the two voices
+differ in stance, not in bar.
+
 ## Finding classification
 
 | Finding type | Disposition |
@@ -360,10 +396,14 @@ foreground in a fresh session, so the reply is the findings, not a job id.
 
 ## Degradation & safety
 
-- Second voice unavailable → single-voice, same loop (`[primary-only]`), with
-  a one-line note that confidence is reduced.
-- Second voice replies empty, or without a `VERDICT:` line → `[codex-degraded]`
-  for that round (Step 1.4); it never counts as a PASS vote.
+- Codex unavailable or failing → the Claude fallback takes the second seat
+  (`[dual-claude]`, Step 1). Single-voice (`[primary-only]`) only under
+  `--fallback none`, with a one-line note that confidence is reduced.
+- Codex replies empty, or without a `VERDICT:` line → `[codex-degraded]`, and
+  the Claude fallback reviews that round instead (Step 1.3–1.4); an empty
+  reply never counts as a PASS vote.
+- The fallback subagent itself fails → finish that round single-voice, tag
+  `[fallback-degraded]`.
 - Primary subagent also fails → stop and report to the user (BLOCKED).
 - **Never:** edit locked policy · auto-commit/push · apply to production ·
   edit files outside `<plan-path>`. Restore points always remain.
