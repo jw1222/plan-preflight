@@ -1,0 +1,22 @@
+{
+  "case": "06-companion-contradiction",
+  "tests": "Companion-document consistency and fix direction. brief.md is the locked companion; plan.md contradicts it twice. Both contradictions must be caught, plan.md must be aligned to the brief, and brief.md must be byte-identical after the gate.",
+  "plan": "plan.md",
+  "companions": ["brief.md"],
+  "seeded_defects": {
+    "D1": "Plan allows a pause of up to 6 months; the brief locks 1, 2, or 3 months.",
+    "D2": "Plan blocks access fully during the pause; the brief locks read-only access."
+  },
+  "expect": {
+    "verdict": "PASS",
+    "max_rounds": 3,
+    "plan_unchanged": false,
+    "unchanged_files": ["brief.md"],
+    "unchanged_sections": [],
+    "must_catch": [
+      {"id": "D1", "any_of": ["6 month", "six month", "3 month", "three month", "pause length", "duration"]},
+      {"id": "D2", "any_of": ["read-only", "read only", "fully blocked", "access"]}
+    ],
+    "required_tags": []
+  }
+}

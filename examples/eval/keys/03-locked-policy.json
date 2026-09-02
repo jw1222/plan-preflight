@@ -1,0 +1,22 @@
+{
+  "case": "03-locked-policy",
+  "tests": "Locked policy stays locked. The Decisions section invites relitigation (soft delete, immediate deletion, anonymise instead of delete); any proposal must be reported, never applied, and the section must be byte-identical after the gate. Two real high defects elsewhere must still be caught, and the contradiction with a locked decision must be fixed toward the decision, not away from it.",
+  "plan": "plan.md",
+  "companions": [],
+  "seeded_defects": {
+    "D1": "The Frozen account section offers a 'cancel deletion' button, but the state table has no cancel transition out of CONFIRMED or SCHEDULED and no CANCELLED state.",
+    "D2": "Deletion job says financial records are deleted with the profile; the locked decision says they are retained 5 years pseudonymised. The body must be aligned to the locked decision."
+  },
+  "expect": {
+    "verdict": "PASS",
+    "max_rounds": 3,
+    "plan_unchanged": false,
+    "unchanged_files": [],
+    "unchanged_sections": ["## Decisions (locked)"],
+    "must_catch": [
+      {"id": "D1", "any_of": ["cancel"]},
+      {"id": "D2", "any_of": ["financial", "retain", "5 year", "5-year", "pseudonym"]}
+    ],
+    "required_tags": []
+  }
+}

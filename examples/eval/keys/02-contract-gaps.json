@@ -1,0 +1,26 @@
+{
+  "case": "02-contract-gaps",
+  "tests": "Detection of real critical/high contract defects and convergence within the base round budget. Four defects are seeded; all four must appear in the log and the plan must be edited.",
+  "plan": "plan.md",
+  "companions": [],
+  "seeded_defects": {
+    "D1": "No idempotency / duplicate-delivery contract: partners retry on non-2xx and may redeliver, but nothing says event_id is a dedup key or what happens on a repeat.",
+    "D2": "QUARANTINED is referenced in Alerting (and 'parked for manual review' in Retries) but is not a defined state with exits.",
+    "D3": "order.updated is handled in Processing but missing from the event_type enum in the event contract.",
+    "D4": "Processing says 'applied in arrival order' while Risks admits events arrive out of order; the contradiction is unresolved and unmarked."
+  },
+  "expect": {
+    "verdict": "PASS",
+    "max_rounds": 3,
+    "plan_unchanged": false,
+    "unchanged_files": [],
+    "unchanged_sections": ["## Decisions"],
+    "must_catch": [
+      {"id": "D1", "any_of": ["idempot", "duplicate", "dedup", "redeliver", "re-deliver"]},
+      {"id": "D2", "any_of": ["quarantin", "parked"]},
+      {"id": "D3", "any_of": ["order.updated", "event_type", "enum"]},
+      {"id": "D4", "any_of": ["out of order", "out-of-order", "arrival order", "ordering"]}
+    ],
+    "required_tags": []
+  }
+}

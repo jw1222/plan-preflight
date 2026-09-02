@@ -156,6 +156,7 @@ of executing:
 | [`sample-plan.md`](examples/sample-plan.md) | A refund-feature plan with deliberate contract gaps (annotated answer key at the bottom) |
 | [`sample-plan.gated.md`](examples/sample-plan.gated.md) | The same plan **after** a real 3-round dual-voice run — every addition is an auto-applied contract fix (recorded before the medium-as-notes rule, so medium items were applied too) |
 | [`sample-plan.review.md`](examples/sample-plan.review.md) | The round-by-round log: findings, severities, the orchestrator's severity override, and the final `GATE PASS [pass-with-notes]` |
+| [`eval/`](examples/eval/) | Regression eval set: six plans with seeded defects, answer keys the reviewers never see, and a prepare/check script. Run it whenever the model or the skill changes |
 
 Highlights from that run: all 3 planted defects caught in round 1 by both
 voices, 4 additional genuine defects found beyond the answer key, zero

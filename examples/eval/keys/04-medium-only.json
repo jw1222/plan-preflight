@@ -1,0 +1,20 @@
+{
+  "case": "04-medium-only",
+  "tests": "The medium-as-notes rule and severity calibration. The plan is complete at contract level; the only flaws are medium at most (cohort/bucket terminology drift, an undefined term, an ambiguous alert sentence). Expected: PASS in one round with the file untouched. Reviewers may report the medium items (then the tag is [pass-with-notes]) or nothing at all; both are correct. An edit means either a medium item was auto-fixed (rule violation) or a medium item was graded critical/high (calibration drift).",
+  "plan": "plan.md",
+  "companions": [],
+  "seeded_defects": {
+    "M1": "'cohort' and 'bucket' are used interchangeably; only 'cohort' is in the glossary.",
+    "M2": "'Alerts on the kill-switch metrics page the search on-call' is ambiguous (which metrics).",
+    "M3": "Stage-gate thresholds are deferred to the rollout ticket, but the deferral is explicit and marked, so it is not a defect."
+  },
+  "expect": {
+    "verdict": "PASS",
+    "max_rounds": 1,
+    "plan_unchanged": true,
+    "unchanged_files": [],
+    "unchanged_sections": [],
+    "must_catch": [],
+    "required_tags": []
+  }
+}

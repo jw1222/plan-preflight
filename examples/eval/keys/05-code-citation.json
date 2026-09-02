@@ -1,0 +1,23 @@
+{
+  "case": "05-code-citation",
+  "tests": "Code-fact verification. The plan cites src/billing/invoice.py twice with claims that contradict the file (rounding mode, discount cap) and once correctly (validate_coupon in coupons.py). Both mismatches must be caught; the plan must be corrected toward the code; the code files must not be touched.",
+  "plan": "plan.md",
+  "companions": [],
+  "seeded_defects": {
+    "D1": "Plan says apply_discount() rounds half-up and that ledger reconciliation relies on it; the code uses ROUND_HALF_EVEN (banker's rounding). Load-bearing for the to-the-cent reconciliation contract.",
+    "D2": "Plan says MAX_DISCOUNT_PERCENT is 30; the code defines Decimal('50').",
+    "control": "validate_coupon() in src/billing/coupons.py exists and matches the plan; it must not be reported as a mismatch."
+  },
+  "expect": {
+    "verdict": "PASS",
+    "max_rounds": 3,
+    "plan_unchanged": false,
+    "unchanged_files": ["src/billing/invoice.py", "src/billing/coupons.py"],
+    "unchanged_sections": [],
+    "must_catch": [
+      {"id": "D1", "any_of": ["half_even", "half-even", "half even", "banker", "half-up", "half up", "rounding"]},
+      {"id": "D2", "any_of": ["max_discount_percent", "discount cap", "cap is"]}
+    ],
+    "required_tags": []
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "case": "01-clean-pass",
+  "tests": "Trap 1 and Trap 2 together: a plan that is complete at plan altitude and explicitly defers impl-micro. A calibrated gate passes it in one round with no edits. Any edit, any extra round, or a FAIL means the bar slipped toward spec or findings were manufactured.",
+  "plan": "plan.md",
+  "companions": [],
+  "expect": {
+    "verdict": "PASS",
+    "max_rounds": 1,
+    "plan_unchanged": true,
+    "unchanged_files": [],
+    "unchanged_sections": [],
+    "must_catch": [],
+    "required_tags": []
+  }
+}

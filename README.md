@@ -151,6 +151,7 @@ Step 3  PASS/FAIL 보고 · 적용한 수정 · 거부 목록 · 복원점 안�
 | [`sample-plan.md`](examples/sample-plan.md) | 계약 결함을 일부러 심어둔 환불 기능 계획서 (하단에 채점표 주석) |
 | [`sample-plan.gated.md`](examples/sample-plan.gated.md) | 실제 3라운드 듀얼 보이스 실행 **이후**의 같은 계획서 — 추가된 내용 전부가 자동 적용된 계약 수정 (medium 노트 규칙 이전 실행이라 medium 항목도 적용돼 있음) |
 | [`sample-plan.review.md`](examples/sample-plan.review.md) | 라운드별 로그: 발견·심각도·오케스트레이터의 심각도 재판정·최종 `GATE PASS [pass-with-notes]` |
+| [`eval/`](examples/eval/) | 회귀 평가 세트: 결함을 심은 계획서 6종, 리뷰어에게 노출되지 않는 정답 키, 준비·판정 스크립트. 모델이나 스킬이 바뀔 때 돌립니다 |
 
 이 실행의 하이라이트: 심은 결함 3종을 1라운드에서 두 리뷰어 모두 검출했고,
 채점표에 없던 진짜 결함도 4건 더 찾아냈습니다. 잠긴 정책은 하나도 건드리지
