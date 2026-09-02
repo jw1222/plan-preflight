@@ -59,6 +59,8 @@ disposition history** so already-handled findings cannot be re-reported.
 - Nothing outside the target plan file(s) is edited — and reviewers themselves
   edit nothing; only the orchestrator applies fixes.
 - A restore point (`<file>.pre-gate-<UTCstamp>`) is created before any edit.
+- Every edit the gate applies is re-reviewed by a later round; the round that
+  declares PASS applies none.
 - The gate never commits, pushes, or deploys. Final approval belongs to the user.
 
 ## Scope
@@ -113,11 +115,13 @@ Injected into every reviewer prompt, every round:
    (redefining the problem, expanding/shrinking scope, reversing decisions)
    are **reported but never applied**. Only a security or feasibility blocker
    may be surfaced, explicitly labeled "policy-change proposal (out of scope)".
-3. **Auto-fix contract defects only.** Applied fixes are limited to
-   contract-level findings: core domain contracts (concurrency, idempotency,
-   state transitions, rollback, interface boundaries — as fits the plan's
-   domain), cross-document contradictions, mismatches with cited code facts,
-   and unresolved-but-unmarked gaps. Policy and impl-micro are never edited.
+3. **Auto-fix critical/high contract defects only.** Applied fixes are limited
+   to contract-level findings graded critical or high: core domain contracts
+   (concurrency, idempotency, state transitions, rollback, interface
+   boundaries — as fits the plan's domain), cross-document contradictions,
+   mismatches with cited code facts, and unresolved-but-unmarked gaps.
+   Medium findings are recorded as notes, never edited. Policy and impl-micro
+   are never edited.
 
 ## Procedure
 
@@ -218,15 +222,21 @@ openai-codex plugin), invoked via the Agent tool. (`--codex off` skips it.)
    - **Dup filter:** findings substantially identical to one already rejected
      or already fixed in a prior round do not count as new (`[dup]` in the
      log, excluded from the verdict).
-3. **Auto-fix** accepted findings only, via Edit, in the plan document. One
-   log line per fix (file · what · why). Never touch invariants or impl-micro.
-   If a finding is ambiguous (could be policy), do not fix — surface it as
-   "needs confirmation".
+3. **Auto-fix** accepted **critical/high** findings only, via Edit, in the
+   plan document. One log line per fix (file · what · why). Accepted
+   **medium** findings are not edited — record them as notes (they appear in
+   the log and the report under `[pass-with-notes]`). Never touch invariants
+   or impl-micro. If a finding is ambiguous (could be policy), do not fix —
+   surface it as "needs confirmation".
 4. **Round verdict (severity gate).** If this round's accepted findings
    (post-dup-filter) contain **zero critical/high → GATE PASS, stop.**
-   - Medium-only: apply the fixes but **do not run a re-check round — PASS
-     immediately** (`[pass-with-notes]` tag + the medium list in the log).
-     By definition, medium does not block starting implementation.
+   - Medium-only: **no edits, no re-check round — PASS immediately**
+     (`[pass-with-notes]` tag + the medium notes in the log and report). By
+     definition, medium does not block starting implementation, so the gate
+     never spends an unreviewed edit on it.
+   - Consequence: every edit the gate applies is a critical/high fix, and a
+     critical/high fix always triggers the next round — so the round that
+     declares PASS has applied no edits, and no edit ever goes unreviewed.
    - Reviewer verdicts are advisory; the orchestrator decides. Even on a
      reviewer FAIL, if every cited reason is medium, impl-micro, or policy,
      **override to PASS** (one-line rationale in the log). Only real
@@ -241,7 +251,7 @@ openai-codex plugin), invoked via the Agent tool. (`--codex off` skips it.)
    English, even when the user-facing report language is not English (see
    "Report language").
 7. End every round with one line:
-   `[PROGRESS] R{n}: accepted X (crit/high A · med B) · rejected Y · dup Z · verdict …`
+   `[PROGRESS] R{n}: accepted X (fixed A crit/high · noted B med) · rejected Y · dup Z · verdict …`
 
 > Rounds are **sequential** (each must see the previous round's edited
 > document). "Parallel" means the two voices *within* a round. Never let the
@@ -250,8 +260,8 @@ openai-codex plugin), invoked via the Agent tool. (`--codex off` skips it.)
 ### Step 3 — Report and log
 
 - To the user: **GATE PASS/FAIL**, round count, cumulative accepted/rejected,
-  the applied-fix list, the rejected policy/impl-micro list (transparency),
-  and unresolved items on FAIL.
+  the applied-fix list, the medium notes (recorded, not applied), the rejected
+  policy/impl-micro list (transparency), and unresolved items on FAIL.
 - Append per-round history to the `--log` location: date · target · findings /
   accepted / rejected / dup / verdict per round · final result · tags
   (`[primary-only]` / `[dual]` / `[pass-with-notes]`).
@@ -342,7 +352,8 @@ foreground in a fresh session, so the reply is the findings, not a job id.
 
 | Finding type | Disposition |
 |---|---|
-| Contract defect (atomicity · idempotency · enums · interfaces · contradiction · code mismatch · unmarked gap) | **Accept → auto-fix → log** |
+| Contract defect, critical/high (atomicity · idempotency · enums · interfaces · contradiction · code mismatch · unmarked gap) | **Accept → auto-fix → log** (re-reviewed by the next round) |
+| Contract defect, medium | **Accept → note only, no edit → `[pass-with-notes]`** |
 | Locked-policy change proposal (redefinition · scope change · decision reversal) | **Reject → log "out of scope (policy)"** (label explicitly if security/feasibility blocker) |
 | Impl-micro (poll · HTTP codes · paths · copy · hash choice …) | **Reject → log "out of scope (implementation-time)"** |
 | Ambiguous (possibly policy) | **Hold the fix → surface "needs confirmation"** |

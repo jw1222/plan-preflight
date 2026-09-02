@@ -54,8 +54,8 @@ PASS는 영원히 "빠진 디테일 하나" 앞에서 좌절됩니다. plan-pref
 | 판정 대상 | "이 계획서로 구현에 들어가도 되는가" — 그 이상도 이하도 아님 |
 | 이중 검증 | Claude + 선택적 codex 2차 리뷰어 (없으면 자동으로 단독 리뷰) |
 | 정책 불변 | 확정된 결정은 시작 시 수집되고 절대 수정되지 않음 — 변경 제안은 보고만 |
-| 자동 수정 범위 | 계약 수준 결함만: 멱등성·롤백·상태전이 계약 누락, 문서 간 모순, 코드와 안 맞는 인용, 미표기 미해결 항목 |
-| 종료 조건 | 한 라운드에 critical/high 0건이면 PASS (medium만 있으면 즉시 pass-with-notes) · 라운드 상한 초과 시 미해결 목록과 함께 FAIL |
+| 자동 수정 범위 | critical/high 계약 수준 결함만: 멱등성·롤백·상태전이 계약 누락, 문서 간 모순, 코드와 안 맞는 인용, 미표기 미해결 항목. medium은 편집하지 않고 노트로만 남김 |
+| 종료 조건 | 한 라운드에 critical/high 0건이면 PASS (medium만 있으면 편집 없이 즉시 pass-with-notes) · 라운드 상한 초과 시 미해결 목록과 함께 FAIL. 게이트가 적용한 수정은 항상 다음 라운드가 재검토함 |
 
 ## 절대 하지 않는 것
 
@@ -147,7 +147,7 @@ Step 3  PASS/FAIL 보고 · 적용한 수정 · 거부 목록 · 복원점 안�
 | 파일 | 내용 |
 |---|---|
 | [`sample-plan.md`](examples/sample-plan.md) | 계약 결함을 일부러 심어둔 환불 기능 계획서 (하단에 채점표 주석) |
-| [`sample-plan.gated.md`](examples/sample-plan.gated.md) | 실제 3라운드 듀얼 보이스 실행 **이후**의 같은 계획서 — 추가된 내용 전부가 자동 적용된 계약 수정 |
+| [`sample-plan.gated.md`](examples/sample-plan.gated.md) | 실제 3라운드 듀얼 보이스 실행 **이후**의 같은 계획서 — 추가된 내용 전부가 자동 적용된 계약 수정 (medium 노트 규칙 이전 실행이라 medium 항목도 적용돼 있음) |
 | [`sample-plan.review.md`](examples/sample-plan.review.md) | 라운드별 로그: 발견·심각도·오케스트레이터의 심각도 재판정·최종 `GATE PASS [pass-with-notes]` |
 
 이 실행의 하이라이트: 심은 결함 3종을 1라운드에서 두 리뷰어 모두 검출했고,

@@ -4,6 +4,9 @@ Date: 2026-08-03 · Target: sample-plan.md · Mode: [dual] (primary + codex:code
 Invariants: manual-approval-only · 30-day window · provider stays PayGate
 Focus: refund state machine · duplicate-refund/idempotency · provider-failure path · window enforcement
 
+> Note: recorded before the medium-as-notes rule. Under the current skill the
+> `med` accepted items would be noted, not fixed, and R3 would apply no edits.
+
 ## R1
 - Findings: primary 7 · codex 6 → cross-voice dedup → 7 unique
 - Accepted 7 (crit/high 6 · med 1) · rejected 0 · dup 6

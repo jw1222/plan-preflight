@@ -5,6 +5,10 @@
 > [pass-with-notes]). Every addition below was an auto-applied contract fix —
 > compare with the original to see exactly what the gate does.
 > Round-by-round history: [`sample-plan.review.md`](sample-plan.review.md)
+>
+> Note: this run predates the medium-as-notes rule. Under the current skill,
+> the medium-graded items (1 in R1, 2 in R2, 3 in R3) would be recorded as
+> notes rather than applied, and only the critical/high fixes would appear here.
 
 ## Goal
 

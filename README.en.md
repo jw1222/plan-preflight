@@ -55,8 +55,8 @@ round's disposition history so handled findings can't be re-reported.
 | Verdict target | "Is this plan ready to implement?" — nothing more |
 | Dual review | Claude + optional codex second voice (auto-degrades to single-reviewer) |
 | Policy invariants | Locked decisions are collected up front and never modified — change proposals are reported, not applied |
-| Auto-fix scope | Contract-level defects only: missing idempotency/rollback/state contracts, cross-document contradictions, citations that don't match the code, unmarked open questions |
-| Termination | PASS when a round yields zero critical/high findings (medium-only = immediate pass-with-notes) · FAIL after the round cap with the unresolved list |
+| Auto-fix scope | Critical/high contract-level defects only: missing idempotency/rollback/state contracts, cross-document contradictions, citations that don't match the code, unmarked open questions. Medium findings are noted, never edited |
+| Termination | PASS when a round yields zero critical/high findings (medium-only = immediate pass-with-notes, no edits) · FAIL after the round cap with the unresolved list. Every edit the gate applies is re-reviewed by the next round |
 
 ## What it never does
 
@@ -152,7 +152,7 @@ of executing:
 | File | What it is |
 |---|---|
 | [`sample-plan.md`](examples/sample-plan.md) | A refund-feature plan with deliberate contract gaps (annotated answer key at the bottom) |
-| [`sample-plan.gated.md`](examples/sample-plan.gated.md) | The same plan **after** a real 3-round dual-voice run — every addition is an auto-applied contract fix |
+| [`sample-plan.gated.md`](examples/sample-plan.gated.md) | The same plan **after** a real 3-round dual-voice run — every addition is an auto-applied contract fix (recorded before the medium-as-notes rule, so medium items were applied too) |
 | [`sample-plan.review.md`](examples/sample-plan.review.md) | The round-by-round log: findings, severities, the orchestrator's severity override, and the final `GATE PASS [pass-with-notes]` |
 
 Highlights from that run: all 3 planted defects caught in round 1 by both
