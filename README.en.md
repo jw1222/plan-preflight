@@ -121,9 +121,12 @@ or anything else — instead? Just ask for it in the invocation:
 /plan-preflight docs/plan.md, please reply in Korean
 ```
 
-The dual-reviewer prompts internally stay in English (tuned that way on
-purpose); only the report shown to you and the `--log` file follow your
-requested language.
+Everything sent to a reviewer stays in English — not just the round-1 prompts
+but round 2+ dispatches, prior-round disposition blocks, and nudges. The
+prompts were tuned in English, and non-English input makes CLI-backed
+reviewers (Codex) drift into third-language reasoning (observed: Korean
+prompts → Japanese chain-of-thought). Only the report shown to you and the
+`--log` file follow your requested language.
 
 ## How it works
 

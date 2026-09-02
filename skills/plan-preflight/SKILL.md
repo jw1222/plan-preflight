@@ -56,7 +56,8 @@ disposition history** so already-handled findings cannot be re-reported.
 ## Guarantees
 
 - Locked policy decisions are reported on, never modified.
-- Nothing outside the target plan file(s) is edited.
+- Nothing outside the target plan file(s) is edited — and reviewers themselves
+  edit nothing; only the orchestrator applies fixes.
 - A restore point (`<file>.pre-gate-<UTCstamp>`) is created before any edit.
 - The gate never commits, pushes, or deploys. Final approval belongs to the user.
 
@@ -90,9 +91,13 @@ their absence never blocks the gate.
 
 **Report language.** The Step 3 report to the user, and the `--log` file, are
 written in whatever language the user's invocation was in (or explicitly
-requested) — default English if no signal. The Step 0 reviewer prompt
-templates stay fixed English regardless of report language; they were tuned
-in English and translating them is not part of this option. Only the
+requested) — default English if no signal. **Everything reviewer-facing is
+fixed English — not just the Step 0 prompt templates but every message sent
+to a reviewer across the whole gate: round 2+ dispatches, prior-round
+disposition blocks, nudges/recalls, and any SendMessage follow-up.** The
+templates were tuned in English, and non-English reviewer input makes
+CLI-backed reviewers (Codex) drift into third-language reasoning (observed:
+Korean prompts → Japanese chain-of-thought in shell logs). Only the
 orchestrator's user-facing report and log adapt.
 
 ## Core principles
@@ -174,6 +179,19 @@ openai-codex plugin), invoked via the Agent tool. (`--codex off` skips it.)
    gate; the omission is deliberate.
 3. If an agent call fails or times out mid-run, finish that round single-voice
    and tag `[codex-degraded]`.
+4. **An empty reply is a failure, not a vote.** The rescue agent returns
+   nothing when the Codex call cannot be made. Treat an empty reply, or any
+   reply without a `VERDICT:` line, as `[codex-degraded]` — never as "zero
+   findings + PASS".
+5. **Pin the routing.** The rescue agent is a forwarder that picks execution
+   mode and sandbox from the request text: it runs long-looking tasks in the
+   background (then the reply is only a job id, not findings), adds `--write`
+   unless the request reads as review-only, and resumes the previous Codex
+   session when the text sounds like a follow-up. So every codex dispatch
+   must (a) start with the routing tokens `--wait --fresh` (foreground, new
+   session — the forwarder strips them from the task text), and (b) state
+   plainly that it is a read-only review with no file edits, so the run stays
+   in the read-only sandbox.
 
 > Agent presence does not guarantee a working call: the underlying Codex CLI
 > must be installed **and authenticated** (`codex login` or `OPENAI_API_KEY`).
@@ -187,10 +205,12 @@ openai-codex plugin), invoked via the Agent tool. (`--codex off` skips it.)
 
 1. **Dispatch.** Use the Step 0.5 prompts as-is. With a second voice, launch
    **both reviewers in the same message** (parallel); otherwise just the
-   primary. Primary = a **fresh Agent subagent** (no conversation context,
-   cold and independent; `REVIEW_PROMPT_PRIMARY`). Second =
-   `codex:codex-rescue` (`REVIEW_PROMPT_CODEX`). Both see the **same current
-   document**.
+   primary. Primary = a **fresh Agent subagent** (`subagent_type:
+   "general-purpose"` — never `fork`, which inherits this conversation's
+   context; cold and independent; `REVIEW_PROMPT_PRIMARY`). Second =
+   `codex:codex-rescue` (`REVIEW_PROMPT_CODEX`, prefixed with `--wait --fresh`
+   per Step 1.5). Both see the **same current document**, and neither edits
+   anything — the orchestrator alone applies fixes in step 3.
 2. **Collect and classify** each finding:
    `{title, file, severity, isContractLevel, isPolicyChange, isImplMicro,
    rationale}`. `isPolicyChange` or `isImplMicro` → **reject** (log "out of
@@ -217,7 +237,9 @@ openai-codex plugin), invoked via the Agent tool. (`--codex off` skips it.)
 6. **Round 2+ prompt augmentation.** Append the **prior-round disposition
    block** (accepted-and-fixed list / rejected-out-of-scope list) to the
    fixed prompt before dispatch — this blocks re-reports and re-drilling of
-   already-rejected altitude.
+   already-rejected altitude. Write the block and the whole dispatch in
+   English, even when the user-facing report language is not English (see
+   "Report language").
 7. End every round with one line:
    `[PROGRESS] R{n}: accepted X (crit/high A · med B) · rejected Y · dup Z · verdict …`
 
@@ -245,6 +267,8 @@ openai-codex plugin), invoked via the Agent tool. (`--codex off` skips it.)
 
 > Review the following as a **plan document** — not a spec. Goal: catch only
 > the **contract and consistency defects** that block starting implementation.
+> **Read-only review: do not create, edit, or delete any file.** Report only;
+> the orchestrator applies fixes.
 >
 > Targets: `<paths>`. (For companion sets, also check cross-document
 > consistency.)
@@ -284,7 +308,9 @@ openai-codex plugin), invoked via the Agent tool. (`--codex off` skips it.)
 
 Delivered as the agent's task via the Agent tool
 (`subagent_type: "codex:codex-rescue"`). No CLI fallback — without the agent,
-run single-voice (see Step 1).
+run single-voice (see Step 1). The task text **starts with the routing tokens
+`--wait --fresh`** (Step 1.5): the forwarder strips them and runs Codex in the
+foreground in a fresh session, so the reply is the findings, not a job id.
 
 - **`--codex-mode adversarial`** prepends one line: "Attack this plan's
   contracts: under which assumptions, orderings, concurrency, or failure paths
@@ -292,7 +318,8 @@ run single-voice (see Step 1).
 
 **Prompt** (same bar as the primary, condensed):
 
-> [adversarial line if enabled] Review the following as a 'plan document'
+> --wait --fresh [adversarial line if enabled] Read-only review — do not
+> create, edit, or delete any file. Review the following as a 'plan document'
 > (not a spec). Goal: only the contract/consistency defects that block
 > implementation. Do not read skill definition directories (`skills/`,
 > `.claude/skills`) — only the target plan and the code it cites.
@@ -324,6 +351,8 @@ run single-voice (see Step 1).
 
 - Second voice unavailable → single-voice, same loop (`[primary-only]`), with
   a one-line note that confidence is reduced.
+- Second voice replies empty, or without a `VERDICT:` line → `[codex-degraded]`
+  for that round (Step 1.4); it never counts as a PASS vote.
 - Primary subagent also fails → stop and report to the user (BLOCKED).
 - **Never:** edit locked policy · auto-commit/push · apply to production ·
   edit files outside `<plan-path>`. Restore points always remain.
